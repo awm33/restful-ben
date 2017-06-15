@@ -237,6 +237,9 @@ def test_retrieve(app):
         'created_at': iso_regex
     })
 
+    response = json_call(test_client.get, '/cats/1234')
+    assert response.status_code == 404
+
 def test_update(app):
     test_client = app.test_client()
     csrf_token = login(test_client)
@@ -268,6 +271,9 @@ def test_update(app):
     })
     assert response.json['updated_at'] > previous_updated_at
 
+    response = json_call(test_client.put, '/cats/1234', {}, headers={'X-CSRF': csrf_token})
+    assert response.status_code == 404
+
 def test_delete(app):
     test_client = app.test_client()
     csrf_token = login(test_client)
@@ -276,4 +282,7 @@ def test_delete(app):
     assert response.status_code == 204
 
     response = test_client.get('/cats/2')
+    assert response.status_code == 404
+
+    response = json_call(test_client.delete, '/cats/1234', {}, headers={'X-CSRF': csrf_token})
     assert response.status_code == 404
