@@ -1,6 +1,9 @@
+import math
+
 from flask import request
 from flask_restful import Resource, abort
 from sqlalchemy.sql import func
+from sqlalchemy.inspection import inspect
 
 class BaseResource(Resource):
     def dispatch(self, *args, **kwargs):
@@ -10,17 +13,25 @@ class BaseResource(Resource):
                 raise Exception('Unimplemented method %r' % request.method)
         return super(BaseResource, self).dispatch(*args, **kwargs)
 
+    def get_pk(self):
+        if hasattr(self, 'primary_key'):
+            return self.primary_key
+        return inspect(self.model).primary_key[0] ## assumes not a composite key
+
 class RetrieveUpdateDeleteResource(BaseResource):
     def get(self, instance_id):
-        instance = self.session.query(self.model).filter_by(id=instance_id).first() ## TODO: get pk from model
+        pk = self.get_pk()
+
+        instance = self.session.query(self.model).filter(pk == instance_id).one_or_none()
         if not instance:
             abort(404, errors=['{} {} not found'.format(self.model.__name__, instance_id)])
         return self.single_schema.dump(instance).data
 
     def put(self, instance_id):
+        pk = self.get_pk()
         raw_body = request.json
 
-        instance = self.session.query(self.model).filter_by(id=instance_id).first() ## TODO: get pk from model
+        instance = self.session.query(self.model).filter(pk == instance_id).one_or_none()
         if not instance:
             abort(404, errors=['{} {} not found'.format(self.model.__name__, instance_id)])
 
@@ -34,7 +45,9 @@ class RetrieveUpdateDeleteResource(BaseResource):
         return self.single_schema.dump(instance).data
 
     def delete(self, instance_id):
-        instance = self.session.query(self.model).filter_by(id=instance_id).first() ## TODO: get pk from model
+        pk = self.get_pk()
+
+        instance = self.session.query(self.model).filter(pk == instance_id).one_or_none()
         if not instance:
             abort(404, errors=['{} {} not found'.format(self.model.__name__, instance_id)])
         self.session.delete(instance)
@@ -156,7 +169,7 @@ class QueryEngineMixin(object):
 
         offset = (page - 1) * page_size
 
-        return offset, page_size
+        return offset, page_size, page
 
     def get_ordering(self):
         raw_ordering = request.args.get(self.order_by_key)
@@ -180,7 +193,7 @@ class QueryEngineMixin(object):
                 else:
                     ordering.append(model_field)
         else:
-            ordering.append(self.model.id) ## TODO: do not assume id is the pk
+            ordering.append(self.get_pk())
 
         return ordering
 
@@ -197,10 +210,9 @@ class QueryEngineMixin(object):
             fields.append(getattr(self.model, raw_field))
         return fields
 
-    def generate_query(self):
+    def generate_query(self, offset, limit):
         fields = self.get_field_selection()
         filters = self.get_filters()
-        offset, limit = self.get_pagination()
         ordering = self.get_ordering()
 
         return self.session.query(*fields)\
@@ -217,12 +229,14 @@ class QueryEngineMixin(object):
         return query.session.execute(count_q).scalar()
 
     def get(self):
-        instances = self.generate_query()
+        offset, limit, page = self.get_pagination()
+        instances = self.generate_query(offset, limit)
         count = self.get_query_count(instances)
         return {
             'data': self.many_schema.dump(instances).data,
-            'count': count
-            ## TODO: page and total_pages
+            'count': count,
+            'page': page,
+            'total_pages': math.ceil(count / limit)
         }
 
 class CreateListResource(BaseResource):

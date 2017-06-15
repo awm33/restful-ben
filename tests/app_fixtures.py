@@ -15,8 +15,7 @@ from restful_ben.auth import (
     UserAuthMixin,
     SessionResource,
     authorization,
-    get_csrf_signer,
-    csrf_check
+    CSRF
 )
 from restful_ben.resources import (
     RetrieveUpdateDeleteResource,
@@ -54,13 +53,12 @@ class User(UserAuthMixin, UserMixin, BaseModel):
 
 db = SQLAlchemy(metadata=metadata, model_class=BaseModel)
 
-csrf_signer = get_csrf_signer('1234abcd')
-csrf_check_local = csrf_check(csrf_signer)
+csrf = CSRF(csrf_secret='1234abcd')
 
 class LocalSessionResource(SessionResource):
     User = User
     session = db.session
-    csrf_signer = csrf_signer
+    csrf = csrf
 
 ## Users Resource
 
@@ -101,14 +99,14 @@ def user_authorization(func):
     return wrapper
 
 class UserResource(RetrieveUpdateDeleteResource):
-    method_decorators = [csrf_check_local, user_authorization, login_required]
+    #method_decorators = [csrf.csrf_check, user_authorization, login_required]
 
     single_schema = user_schema
     model = User
     session = db.session
 
 class UserListResource(QueryEngineMixin, CreateListResource):
-    method_decorators = [csrf_check_local, user_authorization, login_required]
+    #method_decorators = [csrf.csrf_check, user_authorization, login_required]
 
     query_engine_exclude_fields = ['hashed_password', 'password']
     single_schema = user_schema
@@ -156,13 +154,13 @@ cat_authorization = authorization({
 })
 
 class CatResource(RetrieveUpdateDeleteResource):
-    #method_decorators = [csrf_check_local, cat_authorization, login_required]
+    #method_decorators = [csrf.csrf_check, cat_authorization, login_required]
     single_schema = cat_schema
     model = Cat
     session = db.session
 
 class CatListResource(QueryEngineMixin, CreateListResource):
-    #method_decorators = [csrf_check_local, cat_authorization, login_required]
+    #method_decorators = [csrf.csrf_check, cat_authorization, login_required]
     single_schema = cat_schema
     many_schema = cats_schema
     model = Cat

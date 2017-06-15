@@ -27,28 +27,31 @@ def authorization(roles_permissions):
         return wrapper
     return authorization_decorator
 
-def get_csrf_signer(csrf_secret=None):
-    csrf_secret = csrf_secret or os.getenv('CSRF_SECRET', None)
-    return URLSafeSerializer(csrf_secret)
+class CSRF(object):
+    header = 'X-CSRF'
 
-def csrf_check(csrf_signer):
-    def outer_wapper(func):
+    def __init__(self, csrf_secret=None):
+        csrf_secret = csrf_secret or os.getenv('CSRF_SECRET', None)
+        self.csrf_signer = URLSafeSerializer(csrf_secret)
+
+    def generate_token(self):
+        return self.csrf_signer.dumps(binascii.hexlify(os.urandom(32)).decode('utf-8'))
+
+    def csrf_check(self, func):
         @wraps(func)
-        def inner_wrapper(*args, **kwargs):
-            print(request.method)
+        def wrapper(*args, **kwargs):
             if request.method in ['GET','HEAD','OPTIONS'] or \
                 (hassattr(current_user, 'is_api') and current_user.is_api):
                 return func(*args, **kwargs)
 
             ## check for X-CSRF header and check signature
             try:
-                csrf_signer.loads(request.headers['X-CSRF'])
+                self.csrf_signer.loads(request.headers[self.header])
             except:
                 abort(401)
 
             return func(*args, **kwargs)
-        return inner_wrapper
-    return outer_wapper
+        return wrapper
 
 class UserAuthMixin(object):
     username = Column(String, index=True, nullable=False)
@@ -90,7 +93,9 @@ class SessionResource(Resource):
 
         session = session_load.data
 
-        user = self.session.query(self.User).filter(self.User.username == session['username']).one_or_none()
+        user = self.session.query(self.User)\
+                    .filter(self.User.username == session['username'])\
+                    .first()
 
         if not user:
             abort(401, errors=['Not Authorized'])
@@ -101,10 +106,7 @@ class SessionResource(Resource):
 
         login_user(user)
 
-        response_body = {
-            'csrf_token': self.csrf_signer.dumps(binascii.hexlify(os.urandom(32)).decode('utf-8'))
-        }
-
+        response_body = {'csrf_token': self.csrf.generate_token()}
         return response_body
 
     @login_required
