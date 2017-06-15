@@ -7,7 +7,7 @@ from flask import request
 from flask_restful import Resource, abort
 from passlib.hash import argon2
 from marshmallow import Schema, fields
-from flask_login import login_user, logout_user, login_required
+from flask_login import login_user, logout_user, login_required, current_user
 from itsdangerous import URLSafeSerializer
 
 def authorization(roles_permissions):
@@ -41,7 +41,7 @@ class CSRF(object):
         @wraps(func)
         def wrapper(*args, **kwargs):
             if request.method in ['GET','HEAD','OPTIONS'] or \
-                (hassattr(current_user, 'is_api') and current_user.is_api):
+                (hasattr(current_user, 'is_api') and current_user.is_api):
                 return func(*args, **kwargs)
 
             ## check for X-CSRF header and check signature

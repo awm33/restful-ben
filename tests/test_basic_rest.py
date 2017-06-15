@@ -3,13 +3,13 @@ from utils import json_call, login, dict_contains, iso_regex
 
 def test_create(app):
     test_client = app.test_client()
-    login(test_client)
+    csrf_token = login(test_client)
 
     response = json_call(test_client.post, '/cats', {
         'name': 'Dr. Kitty McMoewMoew',
         'breed': 'Tabby',
         'age': 7
-    })
+    }, headers={'X-CSRF': csrf_token})
     assert response.status_code == 200
     assert dict_contains(response.json, {
         'id': 4,
@@ -239,7 +239,7 @@ def test_retrieve(app):
 
 def test_update(app):
     test_client = app.test_client()
-    login(test_client)
+    csrf_token = login(test_client)
 
     response = json_call(test_client.get, '/cats/2')
     assert response.status_code == 200
@@ -256,7 +256,7 @@ def test_update(app):
     cat['age'] = 3
     previous_updated_at = cat['updated_at']
 
-    response = json_call(test_client.put, '/cats/2', cat)
+    response = json_call(test_client.put, '/cats/2', cat, headers={'X-CSRF': csrf_token})
     assert response.status_code == 200
     assert dict_contains(response.json, {
         'id': 2,
@@ -270,9 +270,9 @@ def test_update(app):
 
 def test_delete(app):
     test_client = app.test_client()
-    login(test_client)
+    csrf_token = login(test_client)
 
-    response = test_client.delete('/cats/2')
+    response = test_client.delete('/cats/2', headers={'X-CSRF': csrf_token})
     assert response.status_code == 204
 
     response = test_client.get('/cats/2')

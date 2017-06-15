@@ -99,14 +99,14 @@ def user_authorization(func):
     return wrapper
 
 class UserResource(RetrieveUpdateDeleteResource):
-    #method_decorators = [csrf.csrf_check, user_authorization, login_required]
+    method_decorators = [csrf.csrf_check, user_authorization, login_required]
 
     single_schema = user_schema
     model = User
     session = db.session
 
 class UserListResource(QueryEngineMixin, CreateListResource):
-    #method_decorators = [csrf.csrf_check, user_authorization, login_required]
+    method_decorators = [csrf.csrf_check, user_authorization, login_required]
 
     query_engine_exclude_fields = ['hashed_password', 'password']
     single_schema = user_schema
@@ -154,13 +154,13 @@ cat_authorization = authorization({
 })
 
 class CatResource(RetrieveUpdateDeleteResource):
-    #method_decorators = [csrf.csrf_check, cat_authorization, login_required]
+    method_decorators = [csrf.csrf_check, cat_authorization, login_required]
     single_schema = cat_schema
     model = Cat
     session = db.session
 
 class CatListResource(QueryEngineMixin, CreateListResource):
-    #method_decorators = [csrf.csrf_check, cat_authorization, login_required]
+    method_decorators = [csrf.csrf_check, cat_authorization, login_required]
     single_schema = cat_schema
     many_schema = cats_schema
     model = Cat
