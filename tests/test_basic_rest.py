@@ -10,7 +10,7 @@ def test_create(app):
         'breed': 'Tabby',
         'age': 7
     }, headers={'X-CSRF': csrf_token})
-    assert response.status_code == 200
+    assert response.status_code == 201
     assert dict_contains(response.json, {
         'id': 4,
         'name': 'Dr. Kitty McMoewMoew',

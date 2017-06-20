@@ -8,5 +8,11 @@ setup(
     version='0.0.1',
     packages=find_packages(),
     install_requires=[
+        'Flask==0.12.2',
+        'Flask-RESTful==0.3.6',
+        'Flask-SQLAlchemy==2.2',
+        'marshmallow==2.13.5',
+        'marshmallow-sqlalchemy==0.13.1',
+        'passlib==1.7.1'
     ],
 )

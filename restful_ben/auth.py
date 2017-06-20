@@ -107,7 +107,7 @@ class SessionResource(Resource):
         login_user(user)
 
         response_body = {'csrf_token': self.csrf.generate_token()}
-        return response_body
+        return response_body, 201
 
     @login_required
     def get(self):

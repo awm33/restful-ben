@@ -252,7 +252,7 @@ class CreateListResource(BaseResource):
         self.session.add(instance)
         self.session.commit()
         self.session.refresh(instance)
-        return self.single_schema.dump(instance).data
+        return self.single_schema.dump(instance).data, 201
 
     def get(self):
         instances = self.session.query(self.model)
