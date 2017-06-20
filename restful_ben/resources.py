@@ -182,15 +182,21 @@ class QueryEngineMixin(object):
             for raw_order_field in raw_ordering.split(','):
                 if raw_order_field[0:1] == '-':
                     order = 'desc'
-                    field = raw_order_field[1:]
+                    raw_path = raw_order_field[1:]
                 else:
                     order = 'asc'
-                    field = raw_order_field
+                    raw_path = raw_order_field
+
+                path = raw_path.split('__')
+                field = path[0]
 
                 if not hasattr(self.model, field):
                     abort(400, errors=['`{}` does not exist on {}'.format(field, self.model.__name__)])
 
                 model_field = getattr(self.model, field)
+                if isinstance(model_field.type, JSONB) and len(path) > 1:
+                    model_field = model_field[path[1:]].astext
+
                 if order == 'desc':
                     ordering.append(model_field.desc())
                 else:
