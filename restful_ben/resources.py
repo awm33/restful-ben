@@ -4,6 +4,7 @@ from flask import request
 from flask_restful import Resource, abort
 from sqlalchemy.sql import func
 from sqlalchemy.inspection import inspect
+from sqlalchemy.dialects.postgresql import JSONB
 
 class BaseResource(Resource):
     def dispatch(self, *args, **kwargs):
@@ -110,20 +111,22 @@ class QueryEngineMixin(object):
             if key in self.reserved_keys:
                 continue
 
-            split_key = key.split('__')
-            field_key = split_key[0]
+            path = key.split('__')
+            field_key = path[0]
 
             field = getattr(self.model, field_key, None)
             if field is None or field_key in self.query_engine_exclude_fields:
                 abort(400, errors=['Field `{}` does not exist or is not available for query on {}'.format(field_key, self.model.__name__)])
 
-            num_args = len(split_key)
-            if num_args == 1:
-                op = 'eq'
-            elif num_args == 2:
-                op = split_key[1]
+            if len(path) > 1 and \
+                (path[-1] in self.allowed_operations or path[-1] in self.alias_operations):
+                op = path[-1]
+                path = path[:-1]
             else:
-                abort(400, errors=['Invalid filter argument `{}`'.format(key)])
+                op = 'eq'
+
+            if isinstance(field.type, JSONB) and len(path) > 1:
+                field = field[path[1:]].astext
 
             if hasattr(self, 'operator_overrides') and \
                field_key in self.operator_overrides and \
