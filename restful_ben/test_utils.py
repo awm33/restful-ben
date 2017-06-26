@@ -10,7 +10,7 @@ def json_call(fn, path, *args, **kwargs):
         data = kwargs
         kwargs = dict()
 
-    if len(data.keys()) > 0:
+    if data and len(data.keys()) > 0:
         kwargs['data'] = json.dumps(data)
         kwargs['content_type'] = 'application/json'
 
