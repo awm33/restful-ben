@@ -4,6 +4,8 @@ import re
 iso_regex = re.compile('^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{6}\+[0-9]{2}:[0-9]{2}$')
 
 def json_call(fn, path, *args, **kwargs):
+    data = None
+
     if len(args) > 0:
         data = args[0]
     elif 'headers' not in kwargs:
