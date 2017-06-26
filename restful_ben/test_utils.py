@@ -6,7 +6,7 @@ iso_regex = re.compile('^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.
 def json_call(fn, path, *args, **kwargs):
     if len(args) > 0:
         data = args[0]
-    else:
+    elif 'headers' not kwargs:
         data = kwargs
         kwargs = dict()
 
