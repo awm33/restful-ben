@@ -54,7 +54,7 @@ class CSRF(object):
         return wrapper
 
 class UserAuthMixin(object):
-    username = Column(String, index=True, nullable=False)
+    username = Column(String, unique=True, nullable=False)
     hashed_password = Column(String)
 
     @property
