@@ -1,11 +1,11 @@
 from app_fixtures import app
-from utils import json_call, login, dict_contains, iso_regex
+from restful_ben.test_utils import json_call, login, dict_contains, iso_regex
 
 def test_login(app):
     test_client = app.test_client()
 
     response = json_call(test_client.post, '/session', username='amadonna', password='foo')
-    assert response.status_code == 200
+    assert response.status_code == 201
     assert 'csrf_token' in response.json
     assert len(response.json['csrf_token']) > 64
 

@@ -1,5 +1,5 @@
 from app_fixtures import app
-from utils import json_call, login, dict_contains, iso_regex
+from restful_ben.test_utils import json_call, login, dict_contains, iso_regex
 
 def test_create(app):
     test_client = app.test_client()
@@ -199,6 +199,8 @@ def test_pagination(app):
         'created_at': iso_regex
     })
 
+## TODO: test foreign key field selection
+
 def test_field_selection(app):
     test_client = app.test_client()
     login(test_client)
@@ -239,6 +241,8 @@ def test_retrieve(app):
 
     response = json_call(test_client.get, '/cats/1234')
     assert response.status_code == 404
+
+## TODO: test updated associated models / fields
 
 def test_update(app):
     test_client = app.test_client()

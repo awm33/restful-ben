@@ -41,6 +41,39 @@ class RetrieveUpdateDeleteResource(BaseResource):
         if instance_load.errors:
             abort(400, errors=instance_load.errors)
 
+        ## Update related models
+        relationships = inspect(self.model).relationships
+        for relationship in relationships.keys():
+            if relationship in raw_body:
+                relationship_instance = getattr(instance, relationship)
+                if isinstance(relationship_instance, list):
+                    fpk = relationships[relationship].mapper.primary_key[0].name
+                    frelationships = relationships[relationship].mapper.relationships.keys()
+                    class_ = relationships[relationship].mapper.class_
+                    fpks_to_keep = set()
+                    newly_added = set()
+                    for item in raw_body[relationship]:
+                        if fpk not in item:
+                            new_instance = class_(**item)
+                            relationship_instance.append(new_instance)
+                            newly_added.add(new_instance)
+                        else:
+                            fpks_to_keep.add(item[fpk])
+                            item_instance = None
+                            for k in relationship_instance:
+                                if getattr(k, fpk) == item[fpk]:
+                                    item_instance = k
+                                    break
+                            if not item_instance:
+                                raise Exception('{}: {} {} not found'.format(class_.__name__, fpk, item[fpk]))
+                            for key, value in item.items():
+                                if key not in frelationships:
+                                    setattr(item_instance, key, value)
+
+                    for item in relationship_instance:
+                        if item not in newly_added and getattr(item, fpk) not in fpks_to_keep:
+                            relationship_instance.remove(item)
+
         self.session.commit()
         self.session.refresh(instance)
         return self.single_schema.dump(instance).data
