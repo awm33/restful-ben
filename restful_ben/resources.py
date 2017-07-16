@@ -88,7 +88,7 @@ class RetrieveUpdateDeleteResource(BaseResource):
         self.session.commit()
         return None, 204
 
-## TODO: nested quuerying aka querying associated models
+## TODO: nested querying aka querying associated models
 
 class QueryEngineMixin(object):
     page_key = '$page'
@@ -110,8 +110,8 @@ class QueryEngineMixin(object):
         'contains',
         'like',
         'ilike',
-        'in_', # in
-        'notin_', # not in
+        'in_', # in ## TODO: add comma separation parsing
+        'notin_', # not in  ## TODO: add comma separation parsing
         'notlike', # not like
         'notilike', # not ilike
         'is',
