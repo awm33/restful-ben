@@ -13,13 +13,13 @@ A libray to assist creating [SQLAlchemy](https://www.sqlalchemy.org/), [Flask](h
 		- Filtering
 		- Sorting
 		- Pagination
-	- Authentication
-		- Username and password based sessions
-		- CSRF
-		- Session endpoint - login (POST) and logout (DELETE)
-	- Authorization
-	   - Basic role based authorization
-	   - Roles map to HTTP verbs (GET, POST, etc)
+- Authentication
+	- Username and password based sessions
+	- CSRF
+	- Session endpoint - login (POST) and logout (DELETE)
+- Authorization
+   - Basic role based authorization
+   - Roles map to HTTP verbs (GET, POST, etc)
 
 ## Usage
 
