@@ -7,14 +7,14 @@ def test_create(app):
 
     response = json_call(test_client.post, '/cats', {
         'name': 'Dr. Kitty McMoewMoew',
-        'breed': 'Tabby',
+        'pattern': 'Tabby',
         'age': 7
     }, headers={'X-CSRF': csrf_token})
     assert response.status_code == 201
     assert dict_contains(response.json, {
         'id': 4,
         'name': 'Dr. Kitty McMoewMoew',
-        'breed': 'Tabby',
+        'pattern': 'Tabby',
         'age': 7,
         'updated_at': iso_regex,
         'created_at': iso_regex
@@ -34,7 +34,7 @@ def test_list(app):
         'id': 1,
         'name': 'Ada',
         'age': 5,
-        'breed': 'Tabby',
+        'pattern': 'Tabby',
         'updated_at': iso_regex,
         'created_at': iso_regex
     })
@@ -42,7 +42,7 @@ def test_list(app):
         'id': 2,
         'name': 'Leo',
         'age': 2,
-        'breed': 'Tabby',
+        'pattern': 'Tabby',
         'updated_at': iso_regex,
         'created_at': iso_regex
     })
@@ -50,16 +50,16 @@ def test_list(app):
         'id': 3,
         'name': 'Wilhelmina',
         'age': 4,
-        'breed': 'Calico',
+        'pattern': 'Calico',
         'updated_at': iso_regex,
         'created_at': iso_regex
     })
 
-def test_filter_by_breed(app):
+def test_filter_by_pattern(app):
     test_client = app.test_client()
     login(test_client)
 
-    response = json_call(test_client.get, '/cats?breed=Tabby')
+    response = json_call(test_client.get, '/cats?pattern=Tabby')
     assert response.status_code == 200
     assert response.json['count'] == 2
     assert response.json['page'] == 1
@@ -69,7 +69,7 @@ def test_filter_by_breed(app):
         'id': 1,
         'name': 'Ada',
         'age': 5,
-        'breed': 'Tabby',
+        'pattern': 'Tabby',
         'updated_at': iso_regex,
         'created_at': iso_regex
     })
@@ -77,17 +77,17 @@ def test_filter_by_breed(app):
         'id': 2,
         'name': 'Leo',
         'age': 2,
-        'breed': 'Tabby',
+        'pattern': 'Tabby',
         'updated_at': iso_regex,
         'created_at': iso_regex
     })
 
-def test_order_by_breed(app):
+def test_order_by_pattern(app):
     test_client = app.test_client()
     login(test_client)
 
     ## asc
-    response = json_call(test_client.get, '/cats?$order_by=breed')
+    response = json_call(test_client.get, '/cats?$order_by=pattern')
     assert response.status_code == 200
     assert response.json['count'] == 3
     assert response.json['page'] == 1
@@ -97,7 +97,7 @@ def test_order_by_breed(app):
         'id': 3,
         'name': 'Wilhelmina',
         'age': 4,
-        'breed': 'Calico',
+        'pattern': 'Calico',
         'updated_at': iso_regex,
         'created_at': iso_regex
     })
@@ -105,7 +105,7 @@ def test_order_by_breed(app):
         'id': 1,
         'name': 'Ada',
         'age': 5,
-        'breed': 'Tabby',
+        'pattern': 'Tabby',
         'updated_at': iso_regex,
         'created_at': iso_regex
     })
@@ -113,13 +113,13 @@ def test_order_by_breed(app):
         'id': 2,
         'name': 'Leo',
         'age': 2,
-        'breed': 'Tabby',
+        'pattern': 'Tabby',
         'updated_at': iso_regex,
         'created_at': iso_regex
     })
 
     ## desc
-    response = json_call(test_client.get, '/cats?$order_by=-breed')
+    response = json_call(test_client.get, '/cats?$order_by=-pattern')
     assert response.status_code == 200
     assert response.json['count'] == 3
     assert response.json['page'] == 1
@@ -129,7 +129,7 @@ def test_order_by_breed(app):
         'id': 1,
         'name': 'Ada',
         'age': 5,
-        'breed': 'Tabby',
+        'pattern': 'Tabby',
         'updated_at': iso_regex,
         'created_at': iso_regex
     })
@@ -137,7 +137,7 @@ def test_order_by_breed(app):
         'id': 2,
         'name': 'Leo',
         'age': 2,
-        'breed': 'Tabby',
+        'pattern': 'Tabby',
         'updated_at': iso_regex,
         'created_at': iso_regex
     })
@@ -145,7 +145,7 @@ def test_order_by_breed(app):
         'id': 3,
         'name': 'Wilhelmina',
         'age': 4,
-        'breed': 'Calico',
+        'pattern': 'Calico',
         'updated_at': iso_regex,
         'created_at': iso_regex
     })
@@ -164,7 +164,7 @@ def test_pagination(app):
         'id': 1,
         'name': 'Ada',
         'age': 5,
-        'breed': 'Tabby',
+        'pattern': 'Tabby',
         'updated_at': iso_regex,
         'created_at': iso_regex
     })
@@ -179,7 +179,7 @@ def test_pagination(app):
         'id': 2,
         'name': 'Leo',
         'age': 2,
-        'breed': 'Tabby',
+        'pattern': 'Tabby',
         'updated_at': iso_regex,
         'created_at': iso_regex
     })
@@ -194,7 +194,7 @@ def test_pagination(app):
         'id': 3,
         'name': 'Wilhelmina',
         'age': 4,
-        'breed': 'Calico',
+        'pattern': 'Calico',
         'updated_at': iso_regex,
         'created_at': iso_regex
     })
@@ -205,7 +205,7 @@ def test_field_selection(app):
     test_client = app.test_client()
     login(test_client)
 
-    response = json_call(test_client.get, '/cats?$fields=name,breed')
+    response = json_call(test_client.get, '/cats?$fields=name,pattern')
     assert response.status_code == 200
     assert response.json['count'] == 3
     assert response.json['page'] == 1
@@ -213,15 +213,15 @@ def test_field_selection(app):
     assert len(response.json['data']) == 3
     assert response.json['data'][0] == {
         'name': 'Ada',
-        'breed': 'Tabby'
+        'pattern': 'Tabby'
     }
     assert response.json['data'][1] == {
         'name': 'Leo',
-        'breed': 'Tabby'
+        'pattern': 'Tabby'
     }
     assert response.json['data'][2] == {
         'name': 'Wilhelmina',
-        'breed': 'Calico'
+        'pattern': 'Calico'
     }
 
 def test_retrieve(app):
@@ -234,7 +234,7 @@ def test_retrieve(app):
         'id': 2,
         'name': 'Leo',
         'age': 2,
-        'breed': 'Tabby',
+        'pattern': 'Tabby',
         'updated_at': iso_regex,
         'created_at': iso_regex
     })
@@ -254,7 +254,7 @@ def test_update(app):
         'id': 2,
         'name': 'Leo',
         'age': 2,
-        'breed': 'Tabby',
+        'pattern': 'Tabby',
         'updated_at': iso_regex,
         'created_at': iso_regex
     })
@@ -269,7 +269,7 @@ def test_update(app):
         'id': 2,
         'name': 'Leo',
         'age': 3,
-        'breed': 'Tabby',
+        'pattern': 'Tabby',
         'updated_at': iso_regex,
         'created_at': iso_regex
     })

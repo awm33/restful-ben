@@ -115,7 +115,7 @@ class Cat(BaseModel):
 
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
-    breed = Column(String)
+    pattern = Column(String)
     age = Column(Integer)
     created_at = Column(DateTime,
                         nullable=False,
@@ -126,9 +126,9 @@ class Cat(BaseModel):
                         onupdate=func.now())
 
     def __repr__(self):
-        return '<Cat id: {} name: {} breed: {} age: {}>'.format(self.id, \
+        return '<Cat id: {} name: {} pattern: {} age: {}>'.format(self.id, \
                                                                 self.name, \
-                                                                self.breed, \
+                                                                self.pattern, \
                                                                 self.age)
 
 class CatSchema(ModelSchema):
@@ -200,9 +200,9 @@ def app():
         db.session.commit()
 
         ## seed cats
-        db.session.add(Cat(name='Ada', breed='Tabby', age=5))
-        db.session.add(Cat(name='Leo', breed='Tabby', age=2))
-        db.session.add(Cat(name='Wilhelmina', breed='Calico', age=4))
+        db.session.add(Cat(name='Ada', pattern='Tabby', age=5))
+        db.session.add(Cat(name='Leo', pattern='Tabby', age=2))
+        db.session.add(Cat(name='Wilhelmina', pattern='Calico', age=4))
         db.session.commit()
 
         api.add_resource(UserListResource, '/users')

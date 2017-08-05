@@ -73,21 +73,21 @@ def test_csrf(app):
 
     response = json_call(test_client.post, '/cats', {
         'name': 'Dr. Kitty McMoewMoew',
-        'breed': 'Tabby',
+        'pattern': 'Tabby',
         'age': 7
     })
     assert response.status_code == 401
 
     response = json_call(test_client.post, '/cats', {
         'name': 'Dr. Kitty McMoewMoew',
-        'breed': 'Tabby',
+        'pattern': 'Tabby',
         'age': 7
     }, headers={'X-CSRF': csrf_token})
     assert response.status_code == 201
     assert dict_contains(response.json, {
         'id': 4,
         'name': 'Dr. Kitty McMoewMoew',
-        'breed': 'Tabby',
+        'pattern': 'Tabby',
         'age': 7,
         'updated_at': iso_regex,
         'created_at': iso_regex
@@ -110,7 +110,7 @@ def test_csrf(app):
         'id': 2,
         'name': 'Leo',
         'age': 3,
-        'breed': 'Tabby',
+        'pattern': 'Tabby',
         'updated_at': iso_regex,
         'created_at': iso_regex
     })
@@ -132,7 +132,7 @@ def test_authorization(app):
 
     response = json_call(test_client.post, '/cats', {
         'name': 'Dr. Kitty McMoewMoew',
-        'breed': 'Tabby',
+        'pattern': 'Tabby',
         'age': 7
     }, headers={'X-CSRF': csrf_token})
     assert response.status_code == 403
@@ -141,7 +141,7 @@ def test_authorization(app):
 
     response = json_call(test_client.post, '/cats', {
         'name': 'Dr. Kitty McMoewMoew',
-        'breed': 'Tabby',
+        'pattern': 'Tabby',
         'age': 7
     }, headers={'X-CSRF': csrf_token})
     assert response.status_code == 201

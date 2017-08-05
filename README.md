@@ -33,7 +33,7 @@ class Cat(BaseModel):
 
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
-    breed = Column(String)
+    pattern = Column(String)
     age = Column(Integer)
     created_at = Column(DateTime,
                         nullable=False,
@@ -106,14 +106,14 @@ with app.app_context():
 
 #### Filtering
 
-To filter based on equality simple use the field name plus filter value for one or more fields, ex `/cats?breed=Tabby`. Other operations are available by adding an operator at the end of the field name separated by two underscores, ex `/cats?breed__contains=Tabby`.
+To filter based on equality simple use the field name plus filter value for one or more fields, ex `/cats?pattern=Tabby`. Other operations are available by adding an operator at the end of the field name separated by two underscores, ex `/cats?pattern__contains=Tabby`.
 
 Operators
 
 | Operator | Description | Notes / Example |
 | ------ | ------ | ------ |
-| eq | Equals - default | `/cats?breed=Tabby` or `/cats__eq?breed=Tabby` |
-| ne  | Not Equals (!=) | `/cats__ne?breed=Tabby` |
+| eq | Equals - default | `/cats?pattern=Tabby` or `/cats?pattern__eq=Tabby` |
+| ne  | Not Equals (!=) | `/cats?pattern__ne=Tabby` |
 | lt | Less Than (<) | |
 | lte | Less Than or Equal To (<=) | |
 | gt | Greater Than (>) | |
@@ -134,7 +134,7 @@ Examples
 
 `/cats?$order_by=name`
 
-`/cats?$order_by=breed,-updated_at`
+`/cats?$order_by=pattern,-updated_at`
 
 #### Field selection
 
