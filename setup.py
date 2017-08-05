@@ -5,7 +5,7 @@ from setuptools import find_packages
 
 setup(
     name='restful_ben',
-    version='0.0.1',
+    version='0.0.2',
     packages=find_packages(),
     install_requires=[
         'argon2-cffi==16.3.0',
