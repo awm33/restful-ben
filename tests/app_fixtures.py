@@ -7,15 +7,16 @@ from flask_sqlalchemy import SQLAlchemy
 from marshmallow_sqlalchemy import ModelSchema, field_for
 from marshmallow import fields
 from flask_restful import Api
-from flask_login import UserMixin, LoginManager, login_required
+from flask_login import UserMixin, login_required
 from sqlalchemy import Column, String, Enum, Integer, DateTime, Boolean, func, MetaData, create_engine
 from sqlalchemy.ext.declarative import declarative_base
+from cryptography.fernet import Fernet
 
 from restful_ben.auth import (
     UserAuthMixin,
-    SessionResource,
+    AuthStandalone,
     authorization,
-    CSRF
+    csrf_check
 )
 from restful_ben.resources import (
     RetrieveUpdateDeleteResource,
@@ -52,13 +53,6 @@ class User(UserAuthMixin, UserMixin, BaseModel):
                                                                         self.email)
 
 db = SQLAlchemy(metadata=metadata, model_class=BaseModel)
-
-csrf = CSRF(csrf_secret='1234abcd')
-
-class LocalSessionResource(SessionResource):
-    User = User
-    session = db.session
-    csrf = csrf
 
 ## Users Resource
 
@@ -99,14 +93,14 @@ def user_authorization(func):
     return wrapper
 
 class UserResource(RetrieveUpdateDeleteResource):
-    method_decorators = [csrf.csrf_check, user_authorization, login_required]
+    method_decorators = [csrf_check, user_authorization, login_required]
 
     single_schema = user_schema
     model = User
     session = db.session
 
 class UserListResource(QueryEngineMixin, CreateListResource):
-    method_decorators = [csrf.csrf_check, user_authorization, login_required]
+    method_decorators = [csrf_check, user_authorization, login_required]
 
     query_engine_exclude_fields = ['hashed_password', 'password']
     single_schema = user_schema
@@ -154,13 +148,13 @@ cat_authorization = authorization({
 })
 
 class CatResource(RetrieveUpdateDeleteResource):
-    method_decorators = [csrf.csrf_check, cat_authorization, login_required]
+    method_decorators = [csrf_check, cat_authorization, login_required]
     single_schema = cat_schema
     model = Cat
     session = db.session
 
 class CatListResource(QueryEngineMixin, CreateListResource):
-    method_decorators = [csrf.csrf_check, cat_authorization, login_required]
+    method_decorators = [csrf_check, cat_authorization, login_required]
     single_schema = cat_schema
     many_schema = cats_schema
     model = Cat
@@ -176,20 +170,24 @@ def app():
     app.config['DEBUG'] = True
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['SQLALCHEMY_DATABASE_URI'] = connection_string
-    app.config['SESSION_COOKIE_NAME'] = 'session'
-    app.config['SESSION_COOKIE_HTTPONLY'] = True
-    app.config['PERMANENT_SESSION_LIFETIME'] = 43200
-    app.config['SECRET_KEY'] = 'foo'
 
     db.init_app(app)
     api = Api(app)
 
-    login_manager = LoginManager()
-    login_manager.init_app(app)
+    ## hack to prevent loading the Token model multiple times. Only an issue for tests
+    token_model = None
+    for cls in BaseModel._decl_class_registry.values():
+        if hasattr(cls, '__name__') and cls.__name__ == 'Token':
+            token_model = cls
 
-    @login_manager.user_loader
-    def load_user(user_id):
-        return db.session.query(User).filter(User.id == user_id).first()
+    auth = AuthStandalone(
+                app=app,
+                session=db.session,
+                base_model=BaseModel,
+                token_model=token_model,
+                user_model=User,
+                token_secret=Fernet.generate_key(),
+                csrf_secret=Fernet.generate_key())
 
     with app.app_context():
         db.create_all()
@@ -209,7 +207,7 @@ def app():
 
         api.add_resource(UserListResource, '/users')
         api.add_resource(UserResource, '/users/<int:instance_id>')
-        api.add_resource(LocalSessionResource, '/session')
+        api.add_resource(auth.session_resource, '/session')
         api.add_resource(CatListResource, '/cats')
         api.add_resource(CatResource, '/cats/<int:instance_id>')
 
