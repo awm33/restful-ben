@@ -1,8 +1,9 @@
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
+
+from restful_ben.test_utils import json_call, login, dict_contains, iso_regex
 
 from app_fixtures import app, db
-from restful_ben.test_utils import json_call, login, dict_contains, iso_regex
 
 def test_login(app):
     test_client = app.test_client()
@@ -19,6 +20,15 @@ def test_login(app):
     matches = re.match(cookie_regex, response.headers['Set-Cookie'])
     assert matches != None
 
+    with app.app_context():
+        log_entry = db.session.query(app.auth.auth_log_entry_model).first()
+        assert log_entry.type == 'login'
+        assert log_entry.username == 'amadonna'
+        assert log_entry.user_id == 1
+        assert log_entry.ip == '127.0.0.1'
+        assert isinstance(log_entry.timestamp, datetime)
+        assert log_entry.user_agent == 'werkzeug/0.12.2'
+
 def test_login_fail(app):
     test_client = app.test_client()
 
@@ -27,6 +37,105 @@ def test_login_fail(app):
 
     response = json_call(test_client.post, '/session', username='notauser', password='foo')
     assert response.status_code == 401
+
+    with app.app_context():
+        log_entry = db.session.query(app.auth.auth_log_entry_model).first()
+        assert log_entry.type == 'failed_login_attempt'
+        assert log_entry.username == 'amadonna'
+        assert log_entry.user_id == None
+        assert log_entry.ip == '127.0.0.1'
+        assert isinstance(log_entry.timestamp, datetime)
+        assert log_entry.user_agent == 'werkzeug/0.12.2'
+
+def test_global_login_attempts(app):
+    auth_log_entry_model = app.auth.auth_log_entry_model
+    with app.app_context():
+        for i in range(0, 500):
+            db.session.add(auth_log_entry_model(
+                type='failed_login_attempt',
+                username='foo',
+                ip='76.68.48.234',
+                timestamp=datetime.utcnow(),
+                user_agent='Curl or something'))
+        db.session.commit()
+
+    test_client = app.test_client()
+
+    response = json_call(test_client.post, '/session', username='amadonna', password='foo')
+    assert response.status_code == 401
+    assert response.json['errors'][0] == 'Too Many Login Attempts'
+
+def test_ip_login_attempts(app):
+    auth_log_entry_model = app.auth.auth_log_entry_model
+    with app.app_context():
+        for i in range(0, 100):
+            db.session.add(auth_log_entry_model(
+                type='failed_login_attempt',
+                username='foo',
+                ip='127.0.0.1',
+                timestamp=datetime.utcnow(),
+                user_agent='Curl or something'))
+        db.session.commit()
+
+    test_client = app.test_client()
+
+    response = json_call(test_client.post, '/session', username='amadonna', password='foo')
+    assert response.status_code == 401
+    assert response.json['errors'][0] == 'Too Many Login Attempts'
+
+def test_ip_block_login_attempts(app):
+    auth_log_entry_model = app.auth.auth_log_entry_model
+    with app.app_context():
+        for i in range(0, 200):
+            db.session.add(auth_log_entry_model(
+                type='failed_login_attempt',
+                username='foo',
+                ip='127.0.0.23',
+                timestamp=datetime.utcnow(),
+                user_agent='Curl or something'))
+        db.session.commit()
+
+    test_client = app.test_client()
+
+    response = json_call(test_client.post, '/session', username='amadonna', password='foo')
+    assert response.status_code == 401
+    assert response.json['errors'][0] == 'Too Many Login Attempts'
+
+def test_username_login_attempts(app):
+    auth_log_entry_model = app.auth.auth_log_entry_model
+    with app.app_context():
+        for i in range(0, 5):
+            db.session.add(auth_log_entry_model(
+                type='failed_login_attempt',
+                username='amadonna',
+                ip='127.0.0.1',
+                timestamp=datetime.utcnow(),
+                user_agent='Curl or something'))
+        db.session.commit()
+
+    test_client = app.test_client()
+
+    response = json_call(test_client.post, '/session', username='amadonna', password='foo')
+    assert response.status_code == 401
+    assert response.json['errors'][0] == 'Too Many Login Attempts'
+
+def test_max_sessions(app):
+    token_model = app.auth.token_model
+    with app.app_context():
+        for i in range(0, 10):
+            db.session.add(token_model(
+                type='session',
+                user_id=1,
+                expires_at=datetime.utcnow() + timedelta(hours=12),
+                ip='127.0.0.1',
+                user_agent='Curl or something'))
+        db.session.commit()
+
+    test_client = app.test_client()
+
+    response = json_call(test_client.post, '/session', username='amadonna', password='foo')
+    assert response.status_code == 401
+    assert response.json['errors'][0] == 'Maximum number of user sessions reached.'
 
 def test_get_session(app):
     test_client = app.test_client()

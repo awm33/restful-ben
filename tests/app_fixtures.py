@@ -174,17 +174,22 @@ def app():
     db.init_app(app)
     api = Api(app)
 
-    ## hack to prevent loading the Token model multiple times. Only an issue for tests
+    ## hack to prevent loading the Token and AuthLogEntry models multiple times. Only an issue for tests
     token_model = None
+    auth_log_entry_model = None
     for cls in BaseModel._decl_class_registry.values():
-        if hasattr(cls, '__name__') and cls.__name__ == 'Token':
-            token_model = cls
+        if hasattr(cls, '__name__'):
+            if cls.__name__ == 'Token':
+                token_model = cls
+            elif cls.__name__ == 'AuthLogEntry':
+                auth_log_entry_model = cls
 
     auth = AuthStandalone(
                 app=app,
                 session=db.session,
                 base_model=BaseModel,
                 token_model=token_model,
+                auth_log_entry_model=auth_log_entry_model,
                 user_model=User,
                 token_secret=Fernet.generate_key(),
                 csrf_secret=Fernet.generate_key())

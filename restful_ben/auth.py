@@ -6,10 +6,11 @@ import uuid
 import json
 from datetime import datetime, timedelta
 
-from sqlalchemy import Column, String, Integer, DateTime, Enum, ForeignKey, func
+from sqlalchemy import Column, String, Integer, DateTime, Enum, ForeignKey, Index, func
 from sqlalchemy.dialects.postgresql import INET, UUID, ARRAY
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import validates
+from sqlalchemy.event import listens_for
 from flask import request, current_app
 from flask_restful import Resource, abort
 from passlib.hash import argon2
@@ -165,6 +166,37 @@ class UserAuthMixin(object):
 
         return argon2.verify(input_password, self.hashed_password)
 
+    def __init__(self, *args, **kwargs):
+        kwargs['username'] = kwargs['username'].lower() ## force username to be case insensitive
+        return super(UserAuthMixin, self).__init__(*args, **kwargs)
+
+class AuthLogEntryMixin(object):
+    __tablename__ = 'auth_log'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    type = Column(Enum(
+                'failed_login_attempt',
+                'failed_password_recovery_attempt',
+                'login',
+                'password_change',
+                'password_recovery',
+                name='auth_log_types'), index=True)
+    username = Column(String, index=True, nullable=False)
+    @declared_attr
+    def user_id(cls):
+        return Column(Integer, ForeignKey('users.id'), index=True)
+    ip = Column(INET, nullable=True)
+    timestamp = Column(DateTime, index=True, nullable=False, default=func.now())
+    user_agent = Column(String)
+
+    @classmethod
+    def build_indexes(cls):
+        Index('idx_ip', cls.ip, postgresql_using='gist', postgresql_ops={'ip': 'inet_ops'})
+
+@listens_for(AuthLogEntryMixin, 'instrument_class', propagate=True)
+def receive_mapper_configured(mapper, class_):
+    class_.build_indexes()
+
 class SessionSchema(Schema):
     username = fields.Str(required=True)
     password = fields.Str(required=True)
@@ -181,6 +213,16 @@ def get_ip(number_of_proxies):
         abort(401)
     return request.remote_addr
 
+throttle_login_sql = '''
+SELECT
+    SUM(1) AS global_attempt_count,
+    SUM(CASE WHEN ip = :login_attempt_ip THEN 1 ELSE 0 END) AS ip_attempt_count,
+    SUM(CASE WHEN ip << NETWORK(SET_MASKLEN(:login_attempt_ip, 24)) THEN 1 ELSE 0 END) AS ip_block_attempt_count,
+    SUM(CASE WHEN username = :username THEN 1 ELSE 0 END) AS username_attempt_count
+FROM auth_log
+WHERE type = 'failed_login_attempt' AND timestamp >= (:now - (:period * INTERVAL '1 second'))
+'''
+
 class SessionResource(Resource):
     token_model = None
     cookie_name = 'session'
@@ -189,6 +231,14 @@ class SessionResource(Resource):
     secure_cookie = False
     session_timeout = timedelta(hours=12)
     number_of_proxies = 0
+    auth_log_entry_model = None
+    now = None
+    login_attempt_period = 900 # 15 minutes
+    max_global_login_attempts = 500
+    max_login_attempts_per_ip = 100
+    max_login_attempts_per_ip_block = 200
+    max_login_attempts_per_username = 5
+    max_active_sessions_per_user = 10
 
     def get_cookie(self, token, expires_at):
         domain = ''
@@ -211,12 +261,12 @@ class SessionResource(Resource):
             path,
             secure)
 
-    def session_cookie(self, user):
+    def session_token(self, user, ip):
         token = self.token_model(
             type='session',
             user_id=user.id,
             expires_at=datetime.utcnow() + self.session_timeout,
-            ip=get_ip(self.number_of_proxies),
+            ip=ip,
             user_agent=request.user_agent.string)
         self.session.add(token)
         self.session.commit()
@@ -224,6 +274,59 @@ class SessionResource(Resource):
         expires_at = token.expires_at.strftime('%a, %d %b %Y %H:%M:%S GMT')
 
         return token, self.get_cookie(token.token, expires_at)
+
+    def throttle_login_attempts(self, username, ip):
+        rows = self.session.execute(throttle_login_sql, {
+            'username': username,
+            'login_attempt_ip': ip,
+            'now': self.now or datetime.utcnow(),
+            'period': self.login_attempt_period
+        })
+
+        result = rows.fetchone()
+
+        if all(col == None for col in result):
+            return
+
+        if result.global_attempt_count >= self.max_global_login_attempts or \
+           result.ip_attempt_count >= self.max_login_attempts_per_ip or \
+           result.ip_block_attempt_count >= self.max_login_attempts_per_ip_block or \
+           result.username_attempt_count >= self.max_login_attempts_per_username:
+           abort(401, errors=['Too Many Login Attempts'])
+
+    def fail_login_attempt(self, username, ip):
+        log_entry = self.auth_log_entry_model(
+            type='failed_login_attempt',
+            username=username,
+            ip=ip,
+            timestamp=self.now or datetime.utcnow(),
+            user_agent=request.user_agent.string)
+        self.session.add(log_entry)
+        self.session.commit()
+
+        abort(401, errors=['Not Authorized'])
+
+    def log_login_success(self, user, ip):
+        log_entry = self.auth_log_entry_model(
+            type='login',
+            username=user.username,
+            user_id=user.id,
+            ip=ip,
+            timestamp=self.now or datetime.utcnow(),
+            user_agent=request.user_agent.string)
+        self.session.add(log_entry)
+        self.session.commit()
+
+    def enforce_max_sessions(self, user):
+        session_count = self.session.query(func.count(self.token_model.id))\
+            .filter(self.token_model.type == 'session',
+                    self.token_model.user_id == user.id,
+                    self.token_model.revoked_at == None,
+                    self.token_model.expires_at > func.now())\
+            .scalar()
+
+        if session_count >= self.max_active_sessions_per_user:
+            abort(401, errors=['Maximum number of user sessions reached.'])
 
     def post(self):
         raw_body = request.json
@@ -233,19 +336,28 @@ class SessionResource(Resource):
             abort(400, errors=session_load.errors)
 
         session = session_load.data
+        username = session['username'].lower() ## force username to be case insensitive
+
+        ip = get_ip(self.number_of_proxies)
+
+        self.throttle_login_attempts(username, ip)
 
         user = self.session.query(self.User)\
-                    .filter(self.User.username == session['username'])\
+                    .filter(self.User.username == username)\
                     .first()
 
         if not user:
-            abort(401, errors=['Not Authorized'])
+            self.fail_login_attempt(username, ip)
 
         password_matches = user.verify_password(session['password'])
         if not password_matches:
-            abort(401, errors=['Not Authorized'])
+            self.fail_login_attempt(username, ip)
 
-        token, cookie = self.session_cookie(user)
+        self.enforce_max_sessions(user)
+
+        token, cookie = self.session_token(user, ip)
+
+        self.log_login_success(user, ip)
 
         response_body = {'csrf_token': self.csrf.generate_token(token)}
 
@@ -291,13 +403,20 @@ class AuthStandalone(BaseAuth):
                  user_model=None,
                  token_model=None,
                  token_secret=None,
+                 auth_log_entry_model=None,
                  session_resource=None,
                  cookie_name='session',
                  cookie_domain=None,
                  cookie_path=None,
                  secure_cookie=False,
                  session_timeout=timedelta(hours=12),
-                 number_of_proxies=0):
+                 number_of_proxies=0,
+                 now=None,
+                 login_attempt_period=900,
+                 max_global_login_attempts=500,
+                 max_login_attempts_per_ip=100,
+                 max_login_attempts_per_ip_block=200,
+                 max_login_attempts_per_username=5):
         self.user_model = user_model
         self.session = session
 
@@ -316,18 +435,21 @@ class AuthStandalone(BaseAuth):
             if not token_secret:
                 raise Exception('`token_secret` required if `token_model` is not passed')
 
-            Token = type('Token', (TokenMixin, base_model,), {
+            self.token_model = type('Token', (TokenMixin, base_model,), {
                 'fernet': Fernet(token_secret)
             })
-
-            self.token_model = Token
         else:
             self.token_model = token_model
+
+        if base_model and not auth_log_entry_model:
+            self.auth_log_entry_model = type('AuthLogEntry', (AuthLogEntryMixin, base_model,), {})
+        else:
+            self.auth_log_entry_model = auth_log_entry_model
 
         if session_resource:
             self.session_resource = session_resource
         else:
-            LocalSessionResource = type('LocalSessionResource', (SessionResource,), {
+            self.session_resource = type('LocalSessionResource', (SessionResource,), {
                 'User': self.user_model,
                 'token_model': self.token_model,
                 'session': self.session,
@@ -337,10 +459,15 @@ class AuthStandalone(BaseAuth):
                 'cookie_path': cookie_path,
                 'secure_cookie': secure_cookie,
                 'session_timeout': session_timeout,
-                'number_of_proxies': number_of_proxies
+                'number_of_proxies': number_of_proxies,
+                'auth_log_entry_model': self.auth_log_entry_model,
+                'now': now,
+                'login_attempt_period': login_attempt_period,
+                'max_global_login_attempts': max_global_login_attempts,
+                'max_login_attempts_per_ip': max_login_attempts_per_ip,
+                'max_login_attempts_per_ip_block': max_login_attempts_per_ip_block,
+                'max_login_attempts_per_username': max_login_attempts_per_username
             })
-
-            self.session_resource = LocalSessionResource
 
     def load_user_from_request(self, request):
         token_str = self.extract_token_str(request)
