@@ -8,7 +8,7 @@ from app_fixtures import app, db
 def test_login(app):
     test_client = app.test_client()
 
-    response = json_call(test_client.post, '/session', username='amadonna', password='foo')
+    response = json_call(test_client.post, '/session', email='amadonna@example.com', password='foo')
 
     assert response.status_code == 201
     assert 'csrf_token' in response.json
@@ -23,7 +23,7 @@ def test_login(app):
     with app.app_context():
         log_entry = db.session.query(app.auth.auth_log_entry_model).first()
         assert log_entry.type == 'login'
-        assert log_entry.username == 'amadonna'
+        assert log_entry.email == 'amadonna@example.com'
         assert log_entry.user_id == 1
         assert log_entry.ip == '127.0.0.1'
         assert isinstance(log_entry.timestamp, datetime)
@@ -32,16 +32,16 @@ def test_login(app):
 def test_login_fail(app):
     test_client = app.test_client()
 
-    response = json_call(test_client.post, '/session', username='amadonna', password='bar')
+    response = json_call(test_client.post, '/session', email='amadonna@example.com', password='bar')
     assert response.status_code == 401
 
-    response = json_call(test_client.post, '/session', username='notauser', password='foo')
+    response = json_call(test_client.post, '/session', email='notauser@example.com', password='foo')
     assert response.status_code == 401
 
     with app.app_context():
         log_entry = db.session.query(app.auth.auth_log_entry_model).first()
         assert log_entry.type == 'failed_login_attempt'
-        assert log_entry.username == 'amadonna'
+        assert log_entry.email == 'amadonna@example.com'
         assert log_entry.user_id == None
         assert log_entry.ip == '127.0.0.1'
         assert isinstance(log_entry.timestamp, datetime)
@@ -53,7 +53,7 @@ def test_global_login_attempts(app):
         for i in range(0, 500):
             db.session.add(auth_log_entry_model(
                 type='failed_login_attempt',
-                username='foo',
+                email='foo@example.com',
                 ip='76.68.48.234',
                 timestamp=datetime.utcnow(),
                 user_agent='Curl or something'))
@@ -61,7 +61,7 @@ def test_global_login_attempts(app):
 
     test_client = app.test_client()
 
-    response = json_call(test_client.post, '/session', username='amadonna', password='foo')
+    response = json_call(test_client.post, '/session', email='amadonna@example.com', password='foo')
     assert response.status_code == 401
     assert response.json['errors'][0] == 'Too Many Login Attempts'
 
@@ -71,7 +71,7 @@ def test_ip_login_attempts(app):
         for i in range(0, 100):
             db.session.add(auth_log_entry_model(
                 type='failed_login_attempt',
-                username='foo',
+                email='foo@example.com',
                 ip='127.0.0.1',
                 timestamp=datetime.utcnow(),
                 user_agent='Curl or something'))
@@ -79,7 +79,7 @@ def test_ip_login_attempts(app):
 
     test_client = app.test_client()
 
-    response = json_call(test_client.post, '/session', username='amadonna', password='foo')
+    response = json_call(test_client.post, '/session', email='amadonna@example.com', password='foo')
     assert response.status_code == 401
     assert response.json['errors'][0] == 'Too Many Login Attempts'
 
@@ -89,7 +89,7 @@ def test_ip_block_login_attempts(app):
         for i in range(0, 200):
             db.session.add(auth_log_entry_model(
                 type='failed_login_attempt',
-                username='foo',
+                email='foo@example.com',
                 ip='127.0.0.23',
                 timestamp=datetime.utcnow(),
                 user_agent='Curl or something'))
@@ -97,17 +97,17 @@ def test_ip_block_login_attempts(app):
 
     test_client = app.test_client()
 
-    response = json_call(test_client.post, '/session', username='amadonna', password='foo')
+    response = json_call(test_client.post, '/session', email='amadonna@example.com', password='foo')
     assert response.status_code == 401
     assert response.json['errors'][0] == 'Too Many Login Attempts'
 
-def test_username_ip_login_attempts(app):
+def test_email_ip_login_attempts(app):
     auth_log_entry_model = app.auth.auth_log_entry_model
     with app.app_context():
         for i in range(0, 5):
             db.session.add(auth_log_entry_model(
                 type='failed_login_attempt',
-                username='amadonna',
+                email='amadonna@example.com',
                 ip='127.0.0.1',
                 timestamp=datetime.utcnow(),
                 user_agent='Curl or something'))
@@ -115,17 +115,17 @@ def test_username_ip_login_attempts(app):
 
     test_client = app.test_client()
 
-    response = json_call(test_client.post, '/session', username='amadonna', password='foo')
+    response = json_call(test_client.post, '/session', email='amadonna@example.com', password='foo')
     assert response.status_code == 401
     assert response.json['errors'][0] == 'Too Many Login Attempts'
 
-def test_username_ip_block_login_attempts(app):
+def test_email_ip_block_login_attempts(app):
     auth_log_entry_model = app.auth.auth_log_entry_model
     with app.app_context():
         for i in range(0, 10):
             db.session.add(auth_log_entry_model(
                 type='failed_login_attempt',
-                username='amadonna',
+                email='amadonna@example.com',
                 ip='127.0.0.23',
                 timestamp=datetime.utcnow(),
                 user_agent='Curl or something'))
@@ -133,7 +133,7 @@ def test_username_ip_block_login_attempts(app):
 
     test_client = app.test_client()
 
-    response = json_call(test_client.post, '/session', username='amadonna', password='foo')
+    response = json_call(test_client.post, '/session', email='amadonna@example.com', password='foo')
     assert response.status_code == 401
     assert response.json['errors'][0] == 'Too Many Login Attempts'
 
@@ -151,7 +151,7 @@ def test_max_sessions(app):
 
     test_client = app.test_client()
 
-    response = json_call(test_client.post, '/session', username='amadonna', password='foo')
+    response = json_call(test_client.post, '/session', email='amadonna@example.com', password='foo')
     assert response.status_code == 401
     assert response.json['errors'][0] == 'Maximum number of user sessions reached.'
 
@@ -255,7 +255,7 @@ def test_csrf(app):
 
 def test_authorization(app):
     test_client = app.test_client()
-    csrf_token = login(test_client, username='jdoe', password='icecream') ## normal role
+    csrf_token = login(test_client, email='jdoe@example.com', password='icecream') ## normal role
 
     response = json_call(test_client.post, '/cats', {
         'name': 'Dr. Kitty McMoewMoew',
@@ -264,7 +264,7 @@ def test_authorization(app):
     }, headers={'X-CSRF': csrf_token})
     assert response.status_code == 403
 
-    csrf_token = login(test_client, username='amadonna', password='foo') ## admin role
+    csrf_token = login(test_client, email='amadonna@example.com', password='foo') ## admin role
 
     response = json_call(test_client.post, '/cats', {
         'name': 'Dr. Kitty McMoewMoew',

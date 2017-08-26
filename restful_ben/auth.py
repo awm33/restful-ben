@@ -143,8 +143,10 @@ class TokenMixin(object):
         return None
 
 class UserAuthMixin(object):
-    username = Column(String, unique=True, nullable=False)
     hashed_password = Column(String)
+
+    ### Usage create an email column similar to
+    # email = Column(String, unique=True, nullable=False)
 
     @property
     def password(self):
@@ -166,10 +168,6 @@ class UserAuthMixin(object):
 
         return argon2.verify(input_password, self.hashed_password)
 
-    def __init__(self, *args, **kwargs):
-        kwargs['username'] = kwargs['username'].lower() ## force username to be case insensitive
-        return super(UserAuthMixin, self).__init__(*args, **kwargs)
-
 class AuthLogEntryMixin(object):
     __tablename__ = 'auth_log'
 
@@ -181,7 +179,7 @@ class AuthLogEntryMixin(object):
                 'password_change',
                 'password_recovery',
                 name='auth_log_types'), index=True)
-    username = Column(String, index=True, nullable=False)
+    email = Column(String, index=True, nullable=False)
     @declared_attr
     def user_id(cls):
         return Column(Integer, ForeignKey('users.id'), index=True)
@@ -198,7 +196,7 @@ def receive_mapper_configured(mapper, class_):
     class_.build_indexes()
 
 class SessionSchema(Schema):
-    username = fields.Str(required=True)
+    email = fields.Str(required=True)
     password = fields.Str(required=True)
 
 session_schema = SessionSchema()
@@ -218,8 +216,8 @@ SELECT
     SUM(1) AS global_attempt_count,
     SUM(CASE WHEN ip = :login_attempt_ip THEN 1 ELSE 0 END) AS ip_attempt_count,
     SUM(CASE WHEN ip << NETWORK(SET_MASKLEN(:login_attempt_ip, 24)) THEN 1 ELSE 0 END) AS ip_block_attempt_count,
-    SUM(CASE WHEN username = :username AND ip = :login_attempt_ip THEN 1 ELSE 0 END) AS username_ip_attempt_count,
-    SUM(CASE WHEN username = :username AND ip << NETWORK(SET_MASKLEN(:login_attempt_ip, 24)) THEN 1 ELSE 0 END) AS username_network_attempt_count
+    SUM(CASE WHEN email = :email AND ip = :login_attempt_ip THEN 1 ELSE 0 END) AS email_ip_attempt_count,
+    SUM(CASE WHEN email = :email AND ip << NETWORK(SET_MASKLEN(:login_attempt_ip, 24)) THEN 1 ELSE 0 END) AS email_network_attempt_count
 FROM auth_log
 WHERE type = 'failed_login_attempt' AND timestamp >= (:now - (:period * INTERVAL '1 second'))
 '''
@@ -238,8 +236,8 @@ class SessionResource(Resource):
     max_global_login_attempts = 500
     max_login_attempts_per_ip = 100
     max_login_attempts_per_ip_block = 200
-    max_login_attempts_per_username_ip = 5
-    max_login_attempts_per_username_network = 10
+    max_login_attempts_per_email_ip = 5
+    max_login_attempts_per_email_network = 10
     max_active_sessions_per_user = 10
 
     def get_cookie(self, token, expires_at):
@@ -277,9 +275,9 @@ class SessionResource(Resource):
 
         return token, self.get_cookie(token.token, expires_at)
 
-    def throttle_login_attempts(self, username, ip):
+    def throttle_login_attempts(self, email, ip):
         rows = self.session.execute(throttle_login_sql, {
-            'username': username,
+            'email': email,
             'login_attempt_ip': ip,
             'now': self.now or datetime.utcnow(),
             'period': self.login_attempt_period
@@ -293,14 +291,14 @@ class SessionResource(Resource):
         if result.global_attempt_count >= self.max_global_login_attempts or \
            result.ip_attempt_count >= self.max_login_attempts_per_ip or \
            result.ip_block_attempt_count >= self.max_login_attempts_per_ip_block or \
-           result.username_ip_attempt_count >= self.max_login_attempts_per_username_ip or \
-           result.username_network_attempt_count >= self.max_login_attempts_per_username_network:
+           result.email_ip_attempt_count >= self.max_login_attempts_per_email_ip or \
+           result.email_network_attempt_count >= self.max_login_attempts_per_email_network:
            abort(401, errors=['Too Many Login Attempts'])
 
-    def fail_login_attempt(self, username, ip):
+    def fail_login_attempt(self, email, ip):
         log_entry = self.auth_log_entry_model(
             type='failed_login_attempt',
-            username=username,
+            email=email,
             ip=ip,
             timestamp=self.now or datetime.utcnow(),
             user_agent=request.user_agent.string)
@@ -312,7 +310,7 @@ class SessionResource(Resource):
     def log_login_success(self, user, ip):
         log_entry = self.auth_log_entry_model(
             type='login',
-            username=user.username,
+            email=user.email,
             user_id=user.id,
             ip=ip,
             timestamp=self.now or datetime.utcnow(),
@@ -339,22 +337,22 @@ class SessionResource(Resource):
             abort(400, errors=session_load.errors)
 
         session = session_load.data
-        username = session['username'].lower() ## force username to be case insensitive
+        email = session['email'].lower() ## force email to be case insensitive
 
         ip = get_ip(self.number_of_proxies)
 
-        self.throttle_login_attempts(username, ip)
+        self.throttle_login_attempts(email, ip)
 
         user = self.session.query(self.User)\
-                    .filter(self.User.username == username)\
+                    .filter(self.User.email == email)\
                     .first()
 
         if not user:
-            self.fail_login_attempt(username, ip)
+            self.fail_login_attempt(email, ip)
 
         password_matches = user.verify_password(session['password'])
         if not password_matches:
-            self.fail_login_attempt(username, ip)
+            self.fail_login_attempt(email, ip)
 
         self.enforce_max_sessions(user)
 
@@ -419,7 +417,7 @@ class AuthStandalone(BaseAuth):
                  max_global_login_attempts=500,
                  max_login_attempts_per_ip=100,
                  max_login_attempts_per_ip_block=200,
-                 max_login_attempts_per_username=5):
+                 max_login_attempts_per_email=5):
         self.user_model = user_model
         self.session = session
 
@@ -469,7 +467,7 @@ class AuthStandalone(BaseAuth):
                 'max_global_login_attempts': max_global_login_attempts,
                 'max_login_attempts_per_ip': max_login_attempts_per_ip,
                 'max_login_attempts_per_ip_block': max_login_attempts_per_ip_block,
-                'max_login_attempts_per_username': max_login_attempts_per_username
+                'max_login_attempts_per_email': max_login_attempts_per_email
             })
 
     def load_user_from_request(self, request):

@@ -35,7 +35,7 @@ def dict_contains(dict1, dict2):
             return False
     return True
 
-def login(test_client, path='/session', username='amadonna', password='foo'):
-    response = json_call(test_client.post, path, username=username, password=password)
+def login(test_client, path='/session', email='amadonna@example.com', password='foo'):
+    response = json_call(test_client.post, path, email=email, password=password)
     assert response.status_code == 201
     return response.json['csrf_token']
