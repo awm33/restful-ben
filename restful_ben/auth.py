@@ -218,7 +218,8 @@ SELECT
     SUM(1) AS global_attempt_count,
     SUM(CASE WHEN ip = :login_attempt_ip THEN 1 ELSE 0 END) AS ip_attempt_count,
     SUM(CASE WHEN ip << NETWORK(SET_MASKLEN(:login_attempt_ip, 24)) THEN 1 ELSE 0 END) AS ip_block_attempt_count,
-    SUM(CASE WHEN username = :username THEN 1 ELSE 0 END) AS username_attempt_count
+    SUM(CASE WHEN username = :username AND ip = :login_attempt_ip THEN 1 ELSE 0 END) AS username_ip_attempt_count,
+    SUM(CASE WHEN username = :username AND ip << NETWORK(SET_MASKLEN(:login_attempt_ip, 24)) THEN 1 ELSE 0 END) AS username_network_attempt_count
 FROM auth_log
 WHERE type = 'failed_login_attempt' AND timestamp >= (:now - (:period * INTERVAL '1 second'))
 '''
@@ -237,7 +238,8 @@ class SessionResource(Resource):
     max_global_login_attempts = 500
     max_login_attempts_per_ip = 100
     max_login_attempts_per_ip_block = 200
-    max_login_attempts_per_username = 5
+    max_login_attempts_per_username_ip = 5
+    max_login_attempts_per_username_network = 10
     max_active_sessions_per_user = 10
 
     def get_cookie(self, token, expires_at):
@@ -291,7 +293,8 @@ class SessionResource(Resource):
         if result.global_attempt_count >= self.max_global_login_attempts or \
            result.ip_attempt_count >= self.max_login_attempts_per_ip or \
            result.ip_block_attempt_count >= self.max_login_attempts_per_ip_block or \
-           result.username_attempt_count >= self.max_login_attempts_per_username:
+           result.username_ip_attempt_count >= self.max_login_attempts_per_username_ip or \
+           result.username_network_attempt_count >= self.max_login_attempts_per_username_network:
            abort(401, errors=['Too Many Login Attempts'])
 
     def fail_login_attempt(self, username, ip):

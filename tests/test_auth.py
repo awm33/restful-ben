@@ -101,7 +101,7 @@ def test_ip_block_login_attempts(app):
     assert response.status_code == 401
     assert response.json['errors'][0] == 'Too Many Login Attempts'
 
-def test_username_login_attempts(app):
+def test_username_ip_login_attempts(app):
     auth_log_entry_model = app.auth.auth_log_entry_model
     with app.app_context():
         for i in range(0, 5):
@@ -109,6 +109,24 @@ def test_username_login_attempts(app):
                 type='failed_login_attempt',
                 username='amadonna',
                 ip='127.0.0.1',
+                timestamp=datetime.utcnow(),
+                user_agent='Curl or something'))
+        db.session.commit()
+
+    test_client = app.test_client()
+
+    response = json_call(test_client.post, '/session', username='amadonna', password='foo')
+    assert response.status_code == 401
+    assert response.json['errors'][0] == 'Too Many Login Attempts'
+
+def test_username_ip_block_login_attempts(app):
+    auth_log_entry_model = app.auth.auth_log_entry_model
+    with app.app_context():
+        for i in range(0, 10):
+            db.session.add(auth_log_entry_model(
+                type='failed_login_attempt',
+                username='amadonna',
+                ip='127.0.0.23',
                 timestamp=datetime.utcnow(),
                 user_agent='Curl or something'))
         db.session.commit()
