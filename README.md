@@ -125,6 +125,10 @@ Operators
 | notilike | Case Insensitive Not Like | |
 | startswith | Starts With | |
 | endswith | Ends With | |
+| in | In | `/cats?name__in=Ada&name__in=Leo` |
+| notin | Not In | `/cats?name__notin=Ada&name__notin=Leo` |
+| is | IS - Helper for `null` and `true`/`false` | `/cats?age__is=null` or `/users?active__is=true` or `/users?active__is=false` |
+| isnot | IS NOT - Helper for `null` and `true`/`false` | `/cats?age__isnot=null` |
 
 #### Ordering
 

@@ -109,24 +109,23 @@ class QueryEngineMixin(object):
         'ge', # >=
         'contains',
         'like',
-        'ilike',
-        'in_', # in ## TODO: add comma separation parsing
-        'notin_', # not in  ## TODO: add comma separation parsing
         'notlike', # not like
+        'ilike',
         'notilike', # not ilike
-        'is',
-        'isnot', # is not
         'startswith',
         'endswith',
-        'is_distinct_from', # a IS DISTINCT FROM b
-        'isnot_distinct_from', # a IS NOT DISTINCT FROM b
+        'in_', # in
+        'notin_', # not in
+        'is_',
+        'isnot' # is not
     ]
 
     alias_operations = {
         'lte': 'le',
         'gte': 'ge',
         'in': 'in_',
-        'notin': 'notin_'
+        'notin': 'notin_',
+        'is': 'is_'
     }
 
     @property
@@ -140,7 +139,7 @@ class QueryEngineMixin(object):
 
     def get_filters(self):
         filters = []
-        for key, value in request.args.items():
+        for key in request.args.keys():
             if key in self.reserved_keys:
                 continue
 
@@ -164,6 +163,7 @@ class QueryEngineMixin(object):
             if hasattr(self, 'operator_overrides') and \
                field_key in self.operator_overrides and \
                op in self.operator_overrides[field_key]:
+                value = request.args.get(key)
                 filters.append(self.operator_overrides[field_key][op](value))
                 continue
 
@@ -172,13 +172,28 @@ class QueryEngineMixin(object):
             
             if op not in self.allowed_operations:
                 abort(400, errors=['Operator `{}` not available on {}'.format(op, self.model.__name__)])
-            
-            field_op = list(filter(
-                lambda e: hasattr(field, e % op),
-                ['%s', '%s_', '__%s__']
-            ))[0] % op
 
-            filters.append(getattr(field, field_op)(value))
+            if op == 'in_' or op == 'notin_':
+                value = request.args.getlist(key)
+                filters.append(getattr(field, op)(value))
+            elif op == 'is_' or op == 'isnot':
+                value = request.args.get(key)
+                value_lower = value.lower()
+                if value_lower == 'null' or value_lower == 'none':
+                    value = None
+                elif value_lower == 'true':
+                    value = True
+                elif value_lower == 'false':
+                    value = False
+                filters.append(getattr(field, op)(value))
+            else:
+                value = request.args.get(key)
+                field_op = list(filter(
+                    lambda e: hasattr(field, e % op),
+                    ['%s', '%s_', '__%s__']
+                ))[0] % op
+
+                filters.append(getattr(field, field_op)(value))
         return filters
 
     def get_pagination(self):

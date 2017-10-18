@@ -3,11 +3,12 @@ import os
 
 import pytest
 import flask
+from flask import request
 from flask_sqlalchemy import SQLAlchemy
 from marshmallow_sqlalchemy import ModelSchema, field_for
 from marshmallow import fields
 from flask_restful import Api
-from flask_login import UserMixin, login_required
+from flask_login import UserMixin, login_required, current_user
 from sqlalchemy import Column, String, Enum, Integer, DateTime, Boolean, func, MetaData, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from cryptography.fernet import Fernet
@@ -80,31 +81,29 @@ user_roles = {
 def user_authorization(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
-        if hasattr(current_user, 'role'):
+        if current_user and hasattr(current_user, 'role'):
             role = current_user.role
         else:
             role = None
-        
+
         if role and role in user_roles:
             if request.method in user_roles[role]:
                 return func(*args, **kwargs)
 
-        if role and 'instance_id' in kwargs and current_user.id == int(kwargs['instance_id']):
+        if current_user and 'instance_id' in kwargs and current_user.id == int(kwargs['instance_id']):
             return func(*args, **kwargs)
 
         abort(403)
     return wrapper
 
 class UserResource(RetrieveUpdateDeleteResource):
-    method_decorators = [csrf_check, user_authorization, login_required]
-
+    method_decorators = [user_authorization, csrf_check, login_required]
     single_schema = user_schema
     model = User
     session = db.session
 
 class UserListResource(QueryEngineMixin, CreateListResource):
-    method_decorators = [csrf_check, user_authorization, login_required]
-
+    method_decorators = [user_authorization, csrf_check, login_required]
     query_engine_exclude_fields = ['hashed_password', 'password']
     single_schema = user_schema
     many_schema = users_schema
@@ -151,13 +150,13 @@ cat_authorization = authorization({
 })
 
 class CatResource(RetrieveUpdateDeleteResource):
-    method_decorators = [csrf_check, cat_authorization, login_required]
+    method_decorators = [cat_authorization, csrf_check, login_required]
     single_schema = cat_schema
     model = Cat
     session = db.session
 
 class CatListResource(QueryEngineMixin, CreateListResource):
-    method_decorators = [csrf_check, cat_authorization, login_required]
+    method_decorators = [cat_authorization, csrf_check, login_required]
     single_schema = cat_schema
     many_schema = cats_schema
     model = Cat

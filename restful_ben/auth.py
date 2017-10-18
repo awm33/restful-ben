@@ -23,7 +23,7 @@ def authorization(roles_permissions):
     def authorization_decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            if hasattr(current_user, 'role'):
+            if current_user and hasattr(current_user, 'role'):
                 role = current_user.role
             else:
                 role = None
