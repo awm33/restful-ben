@@ -92,7 +92,7 @@ class TokenMixin(object):
     type = Column(Enum('session', 'token', 'refresh_token', name='token_type'), nullable=False)
     @declared_attr
     def user_id(cls):
-        return Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+        return Column(Integer, ForeignKey('users.id'), index=True)
     scopes = Column(ARRAY(String))
     expires_at = Column(DateTime, nullable=False, index=True)
     revoked_at = Column(DateTime, index=True)
@@ -108,9 +108,13 @@ class TokenMixin(object):
 
     @validates('scopes')
     def validate_scopes(self, key, scopes):
+        if self.type == 'session' and self.type != None:
+            raise Exception('Session tokens do not have scopes')
+
         if (self.type == 'token' or self.type == 'refresh_token') and \
-           (self.scopes == None or len(self.scopes) == 0):
-           raise Exception('Types `token` and `refresh_token` require `scopes`')
+           (scopes == None or len(scopes) == 0):
+            raise Exception('Types `token` and `refresh_token` require `scopes`')
+
         return scopes
 
     @property
@@ -475,6 +479,9 @@ class AuthStandalone(BaseAuth):
 
         token = self.token_model.verify_token(self.session, token_str)
 
+        ## TODO: check scope?
+        ## TODO: make sure token type is session
+
         if token == None:
             return None
 
@@ -515,6 +522,9 @@ class AuthServiceClient(BaseAuth):
         token_str = self.extract_token_str(request)
 
         data = verify_token_fernet(self.token_fernet, token_str)
+
+        ## TODO: check scope?
+        ## TODO: make sure token type is session
 
         if data == None:
             return None
