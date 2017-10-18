@@ -194,8 +194,7 @@ def app():
                 token_model=token_model,
                 auth_log_entry_model=auth_log_entry_model,
                 user_model=User,
-                token_secret=Fernet.generate_key(),
-                csrf_secret=Fernet.generate_key())
+                token_secret=Fernet.generate_key())
 
     with app.app_context():
         db.create_all()

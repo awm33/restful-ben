@@ -11,8 +11,6 @@ def test_login(app):
     response = json_call(test_client.post, '/session', email='amadonna@example.com', password='foo')
 
     assert response.status_code == 201
-    assert 'csrf_token' in response.json
-    assert len(response.json['csrf_token']) > 64
     assert 'Set-Cookie' in response.headers
 
     cookie_regex = r'session=[^;]+;\sExpires=[A-Za-z]{3},\s[0-9]{2}\s[A-Za-z]{3}\s[0-9]{4}\s[0-9]{2}:[0-9]{2}:[0-9]{2}\sGMT;\sHttpOnly'
@@ -194,7 +192,7 @@ def test_requires_login(app):
 
 def test_csrf(app):
     test_client = app.test_client()
-    csrf_token = login(test_client)
+    login(test_client)
 
     ## POST
 
@@ -209,7 +207,7 @@ def test_csrf(app):
         'name': 'Dr. Kitty McMoewMoew',
         'pattern': 'Tabby',
         'age': 7
-    }, headers={'X-CSRF': csrf_token})
+    }, headers={'x-requested-with': 'requests'})
     assert response.status_code == 201
     assert dict_contains(response.json, {
         'id': 4,
@@ -231,7 +229,7 @@ def test_csrf(app):
     response = json_call(test_client.put, '/cats/2', cat)
     assert response.status_code == 401
 
-    response = json_call(test_client.put, '/cats/2', cat, headers={'X-CSRF': csrf_token})
+    response = json_call(test_client.put, '/cats/2', cat, headers={'X-Requested-With': 'requests'})
     assert response.status_code == 200
     assert dict_contains(response.json, {
         'id': 2,
@@ -247,7 +245,7 @@ def test_csrf(app):
     response = test_client.delete('/cats/2')
     assert response.status_code == 401
 
-    response = test_client.delete('/cats/2', headers={'X-CSRF': csrf_token})
+    response = test_client.delete('/cats/2', headers={'X-Requested-With': 'requests'})
     assert response.status_code == 204
 
     response = test_client.get('/cats/2')
@@ -255,20 +253,20 @@ def test_csrf(app):
 
 def test_authorization(app):
     test_client = app.test_client()
-    csrf_token = login(test_client, email='jdoe@example.com', password='icecream') ## normal role
+    login(test_client, email='jdoe@example.com', password='icecream') ## normal role
 
     response = json_call(test_client.post, '/cats', {
         'name': 'Dr. Kitty McMoewMoew',
         'pattern': 'Tabby',
         'age': 7
-    }, headers={'X-CSRF': csrf_token})
+    }, headers={'X-Requested-With': 'requests'})
     assert response.status_code == 403
 
-    csrf_token = login(test_client, email='amadonna@example.com', password='foo') ## admin role
+    login(test_client, email='amadonna@example.com', password='foo') ## admin role
 
     response = json_call(test_client.post, '/cats', {
         'name': 'Dr. Kitty McMoewMoew',
         'pattern': 'Tabby',
         'age': 7
-    }, headers={'X-CSRF': csrf_token})
+    }, headers={'X-Requested-With': 'requests'})
     assert response.status_code == 201

@@ -43,27 +43,11 @@ def csrf_check(func):
             (hasattr(current_user, 'token') and current_user.token.type != 'session'):
             return func(*args, **kwargs)
 
-        ## check for X-CSRF header and check signature
-        try:
-            csrf = current_app.auth.csrf
-            csrf_token_id = csrf.fernet.decrypt(request.headers[csrf.header].encode('utf-8')).decode('utf-8')
-            assert csrf_token_id == str(current_user.token.id)
-        except:
-            abort(401)
+        if 'X-Requested-With' in request.headers:
+            return func(*args, **kwargs)
 
-        return func(*args, **kwargs)
+        abort(401)
     return wrapper
-
-class CSRF(object):
-    def __init__(self, csrf_secret=None, csrf_header=None):
-        csrf_secret = csrf_secret or os.getenv('CSRF_SECRET', None)
-        if csrf_secret == None:
-            raise Exception('`csrf_secret` required')
-        self.fernet = Fernet(csrf_secret)
-        self.header = csrf_header or 'X-CSRF'
-
-    def generate_token(self, token):
-        return self.fernet.encrypt(str(token.id).encode('utf-8')).decode('utf-8')
 
 def verify_token_fernet(fernet, raw_input_token):
     try:
@@ -364,9 +348,7 @@ class SessionResource(Resource):
 
         self.log_login_success(user, ip)
 
-        response_body = {'csrf_token': self.csrf.generate_token(token)}
-
-        return response_body, 201, {'Set-Cookie': cookie}
+        return None, 201, {'Set-Cookie': cookie}
 
     @login_required
     def get(self):
@@ -402,8 +384,6 @@ class AuthStandalone(BaseAuth):
     def __init__(self,
                  app=None,
                  session=None,
-                 csrf_header=None,
-                 csrf_secret=None,
                  base_model=None,
                  user_model=None,
                  token_model=None,
@@ -433,8 +413,6 @@ class AuthStandalone(BaseAuth):
         if app:
             self.init_app(app)
 
-        self.csrf = CSRF(csrf_secret=csrf_secret, csrf_header=csrf_header)
-
         if base_model and not token_model:
             token_secret = token_secret or os.getenv('TOKEN_SECRET', None)
             if not token_secret:
@@ -458,7 +436,6 @@ class AuthStandalone(BaseAuth):
                 'User': self.user_model,
                 'token_model': self.token_model,
                 'session': self.session,
-                'csrf': self.csrf,
                 'cookie_name': self.cookie_name,
                 'cookie_domain': cookie_domain,
                 'cookie_path': cookie_path,
@@ -498,8 +475,6 @@ class AuthServiceClient(BaseAuth):
     def __init__(self,
                  app=None,
                  token_secret=None,
-                 csrf_header=None,
-                 csrf_secret=None,
                  cookie_name='session',
                  cookie_domain=None,
                  cookie_path=None,
@@ -515,8 +490,6 @@ class AuthServiceClient(BaseAuth):
 
         if app:
             self.init_app(app)
-
-        self.csrf = CSRF(csrf_secret=csrf_secret, csrf_header=csrf_header)
 
     def load_user_from_request(self, request):
         token_str = self.extract_token_str(request)
