@@ -4,7 +4,13 @@ Ben's had a nap, he's feeling RESTful and ready to go.
 
 A libray to assist creating [SQLAlchemy](https://www.sqlalchemy.org/), [Flask](http://flask.pocoo.org/), and [flask-restful](https://flask-restful.readthedocs.io/en/0.3.5/) based APIs.
 
-### Features
+## Installation
+
+To install the package, please use the `pip` installation as follows:
+
+    pip install restful-ben
+
+## Features
 
 - RESTful resources
 	- Generates POST, GET (individual and list), PUT, and DELETE endpoints based on a SQLAlchemy model and a [Marshmallow](https://marshmallow.readthedocs.io/en/latest/) schema.
