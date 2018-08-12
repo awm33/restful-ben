@@ -25,7 +25,7 @@ def test_login(app):
         assert log_entry.user_id == 1
         assert log_entry.ip == '127.0.0.1'
         assert isinstance(log_entry.timestamp, datetime)
-        assert log_entry.user_agent == 'werkzeug/0.12.2'
+        assert log_entry.user_agent == 'werkzeug/0.14.1'
 
 def test_login_fail(app):
     test_client = app.test_client()
@@ -43,7 +43,7 @@ def test_login_fail(app):
         assert log_entry.user_id == None
         assert log_entry.ip == '127.0.0.1'
         assert isinstance(log_entry.timestamp, datetime)
-        assert log_entry.user_agent == 'werkzeug/0.12.2'
+        assert log_entry.user_agent == 'werkzeug/0.14.1'
 
 def test_global_login_attempts(app):
     auth_log_entry_model = app.auth.auth_log_entry_model
